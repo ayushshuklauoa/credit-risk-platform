@@ -1,0 +1,240 @@
+
+services:
+  # API Gateway
+  gateway:
+    build:
+      context: .
+      dockerfile: ./gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - postgres-auth
+      - postgres-customer
+      - postgres-account
+      - postgres-credit
+      - postgres-fraud
+      - postgres-document
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - CUSTOMER_SERVICE_URL=http://customer-service:8002
+      - ACCOUNT_SERVICE_URL=http://account-service:8003
+      - CREDIT_SERVICE_URL=http://credit-scoring-service:8004
+      - FRAUD_SERVICE_URL=http://fraud-detection-service:8005
+      - DOCUMENT_SERVICE_URL=http://document-ai-service:8006
+    volumes:
+      - ./gateway:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  # Auth Service
+  auth-service:
+    build:
+      context: .
+      dockerfile: ./services/auth-service/Dockerfile
+    ports:
+      - "8001:8001"
+    depends_on:
+      - postgres-auth
+      - redis
+    environment:
+      - AUTH_DATABASE_URL=postgresql://auth_user:auth_password@postgres-auth:5432/auth_db
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET_KEY=your-secret-key-change-in-production
+    volumes:
+      - ./services/auth-service:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 4
+
+  # Customer Service
+  customer-service:
+    build:
+      context: .
+      dockerfile: ./services/customer-service/Dockerfile
+    ports:
+      - "8002:8002"
+    depends_on:
+      - postgres-customer
+      - redis
+    environment:
+      - CUSTOMER_DATABASE_URL=postgresql://customer_user:customer_password@postgres-customer:5432/customer_db
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./services/customer-service:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002
+
+  # Account Service
+  account-service:
+    build:
+      context: .
+      dockerfile: ./services/account-service/Dockerfile
+    ports:
+      - "8003:8003"
+    depends_on:
+      - postgres-account
+      - redis
+    environment:
+      - ACCOUNT_DATABASE_URL=postgresql://account_user:account_password@postgres-account:5432/account_db
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./services/account-service:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003
+
+  # Credit Scoring Service
+  credit-scoring-service:
+    build:
+      context: .
+      dockerfile: ./services/credit-scoring-service/Dockerfile
+    ports:
+      - "8004:8004"
+    depends_on:
+      - postgres-credit
+      - redis
+    environment:
+      - CREDIT_DATABASE_URL=postgresql://credit_user:credit_password@postgres-credit:5432/credit_db
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./services/credit-scoring-service:/app
+      - ./shared-lib:/app/shared-lib
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8004
+
+  # Fraud Detection Service
+  fraud-detection-service:
+    build:
+      context: .
+      dockerfile: ./services/fraud-detection-service/Dockerfile
+    ports:
+      - "8005:8005"
+    depends_on:
+      - postgres-fraud
+      - redis
+    environment:
+      - FRAUD_DATABASE_URL=postgresql://fraud_user:fraud_password@postgres-fraud:5432/fraud_db
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./services/fraud-detection-service:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8005
+
+  # Document AI Service
+  document-ai-service:
+    build:
+      context: .
+      dockerfile: ./services/document-ai-service/Dockerfile
+    ports:
+      - "8006:8006"
+    depends_on:
+      - postgres-document
+      - redis
+    environment:
+      - DOCUMENT_DATABASE_URL=postgresql://document_user:document_password@postgres-document:5432/document_db
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./services/document-ai-service:/app
+      - ./services/document-ai-service/uploads:/app/uploads
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8006
+
+  # Redis for caching, rate limiting, session store
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # PostgreSQL databases
+  postgres-auth:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=auth_user
+      - POSTGRES_PASSWORD=auth_password
+      - POSTGRES_DB=auth_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+
+  postgres-customer:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=customer_user
+      - POSTGRES_PASSWORD=customer_password
+      - POSTGRES_DB=customer_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_customer_data:/var/lib/postgresql/data
+
+  postgres-account:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=account_user
+      - POSTGRES_PASSWORD=account_password
+      - POSTGRES_DB=account_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_account_data:/var/lib/postgresql/data
+
+  postgres-credit:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=credit_user
+      - POSTGRES_PASSWORD=credit_password
+      - POSTGRES_DB=credit_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_credit_data:/var/lib/postgresql/data
+
+  postgres-fraud:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=fraud_user
+      - POSTGRES_PASSWORD=fraud_password
+      - POSTGRES_DB=fraud_db
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_fraud_data:/var/lib/postgresql/data
+
+  postgres-document:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=document_user
+      - POSTGRES_PASSWORD=document_password
+      - POSTGRES_DB=document_db
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres_document_data:/var/lib/postgresql/data
+
+  # Monitoring Platform
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - default
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - default
+
+volumes:
+  redis_data:
+  postgres_auth_data:
+  postgres_customer_data:
+  postgres_account_data:
+  postgres_credit_data:
+  postgres_fraud_data:
+  postgres_document_data:
+
+networks:
+  default:
+    name: crip_network
